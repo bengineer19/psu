@@ -11,6 +11,8 @@
 #include <Elegoo_TFTLCD.h> // Hardware-specific TFT library
 #include <ClickEncoder.h>
 #include <TimerOne.h>
+#include <Wire.h>
+#include <Adafruit_ADS1015.h>
 #include <BuckPSU.h>
 
 
@@ -113,6 +115,12 @@
 #define MILLIAMPS_PER_NOTCH_SLOW    100
 #define MILLIAMPS_PER_NOTCH_FAST    1000
 
+// Scale ADC input values according the attenuation by the voltage dividers
+#define ADC_0_1_DIVIDER_GAIN        7.25F
+#define ADC_2_3_DIVIDER_GAIN        10.72F
+#define ADC_ADDRESS                 0x48
+#define ADC_MULTIPLIER              0.1875F
+
 #define MIN_SMPS_VOLTAGE_MILLIVOLTS 0
 #define MAX_SMPS_VOLTAGE_MILLIVOLTS 40000
 
@@ -129,6 +137,8 @@ ClickEncoder *voltEncoder;
 ClickEncoder *currEncoder;
 
 BuckPSU psu(Serial1);
+
+Adafruit_ADS1115 ads(ADC_ADDRESS);
 
 uint16_t millivolts = 0, prevMillivolts = -1;
 uint16_t milliamps = 0, prevMilliamps = -1;
@@ -148,6 +158,9 @@ void setup(void) {
     Timer1.initialize(1000);
     Timer1.attachInterrupt(encoderISR);
 
+    // Setup ADC
+    ads.begin();
+
     tft.reset();
     tft.begin(TFT_IDENTIFIER);
     // Landscape orientation
@@ -163,9 +176,13 @@ void setup(void) {
 
 void loop()
 {
+    delay(200);
+    Serial.print("Linear:  ");
+    Serial.println(getLinearVoltageMillivolts());
+    Serial.print("transformer:  ");
+    Serial.println(getTransformerVoltageMillivolts());
 
-
-    millivolts = update_millivolts(millivolts);
+    millivolts = updateMillivolts(millivolts);
     if (millivolts != prevMillivolts) {
         prevMillivolts = millivolts;
 
@@ -176,7 +193,7 @@ void loop()
 
 
     ClickEncoder::Button currEncoder_btn = currEncoder->getButton();
-    milliamps = update_milliamps(milliamps);
+    milliamps = updateMilliamps(milliamps);
     if (milliamps != prevMilliamps) {
         prevMilliamps = milliamps;
 
@@ -188,7 +205,7 @@ void loop()
 }
 
 // Update millivolts from the latest encoder reading
-uint16_t update_millivolts(uint16_t millivolts){
+uint16_t updateMillivolts(uint16_t millivolts){
     static bool voltAdjustSlow = false;
 
     // If button is clicked, change speed from slow to fast or vice versa
@@ -220,7 +237,7 @@ uint16_t update_millivolts(uint16_t millivolts){
 
 
 // Update milliamps from the latest encoder reading
-uint16_t update_milliamps(uint16_t milliamps){
+uint16_t updateMilliamps(uint16_t milliamps){
     static bool currAdjustSlow = true;
 
     // If button is clicked, change speed from slow to fast or vice versa
@@ -336,6 +353,24 @@ void setupUI() {
     tft.print("A");
 }
 
+// Sample ADC differential voltage from linear power supply
+int16_t getLinearVoltageMillivolts(){
+    float result = ads.readADC_Differential_0_1() * ADC_MULTIPLIER;
+    Serial.print("result: ");
+    Serial.println(result);
+    float result_scaled = result * ADC_0_1_DIVIDER_GAIN;
+    Serial.print("result scaled: ");
+    Serial.println(result_scaled);
+    return (int16_t) (result_scaled);
+}
+
+// Sample ADC differential voltage from transformer output
+int16_t getTransformerVoltageMillivolts(){
+  float multiplier = 0.1875F;
+    float voltage = ads.readADC_Differential_2_3() * multiplier;
+    return (int16_t) (voltage * ADC_2_3_DIVIDER_GAIN);
+}
+
 // Show constant voltage symbol (hides CV)
 void setUICV(bool enabled)
 {
@@ -348,4 +383,6 @@ void encoderISR() {
     voltEncoder->service();
     currEncoder->service();
 }
+
+
 
