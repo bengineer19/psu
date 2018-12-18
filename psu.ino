@@ -69,16 +69,16 @@
 #define WHITE   0xFFFF
 
 // Define UI geometry
-#define SMPS_VOLT_START_X           10
+#define SMPS_VOLT_START_X           15
 #define SMPS_VOLT_START_Y           70
-#define SMPS_VOLT_TEXT_SIZE         5
+#define SMPS_VOLT_TEXT_SIZE         4
 #define SMPS_VOLT_CHAR_WIDTH        (5 * SMPS_VOLT_TEXT_SIZE)
 #define SMPS_VOLT_CHAR_HEIGHT       (7 * SMPS_VOLT_TEXT_SIZE)
 #define SMPS_VOLT_CHAR_SPACER       2
 #define SMPS_VOLT_TOTAL_CHAR_WIDTH  (SMPS_VOLT_CHAR_WIDTH + SMPS_VOLT_CHAR_SPACER)
 #define SMPS_VOLT_NUM_CHARS         5
 
-#define SMPS_CURR_START_X           10
+#define SMPS_CURR_START_X           15
 #define SMPS_CURR_START_Y           120
 #define SMPS_CURR_TEXT_SIZE         4
 #define SMPS_CURR_CHAR_WIDTH        (5 * SMPS_CURR_TEXT_SIZE)
@@ -86,6 +86,15 @@
 #define SMPS_CURR_CHAR_SPACER       2
 #define SMPS_CURR_TOTAL_CHAR_WIDTH  (SMPS_CURR_CHAR_WIDTH + SMPS_CURR_CHAR_SPACER)
 #define SMPS_CURR_NUM_CHARS         5
+
+#define LINEAR_VOLT_START_X           185
+#define LINEAR_VOLT_START_Y           70
+#define LINEAR_VOLT_TEXT_SIZE         4
+#define LINEAR_VOLT_CHAR_WIDTH        (5 * LINEAR_VOLT_TEXT_SIZE)
+#define LINEAR_VOLT_CHAR_HEIGHT       (7 * LINEAR_VOLT_TEXT_SIZE)
+#define LINEAR_VOLT_CHAR_SPACER       2
+#define LINEAR_VOLT_TOTAL_CHAR_WIDTH  (LINEAR_VOLT_CHAR_WIDTH + LINEAR_VOLT_CHAR_SPACER)
+#define LINEAR_VOLT_NUM_CHARS         4
 
 /*
  * Rotary encoders
@@ -116,10 +125,10 @@
 #define MILLIAMPS_PER_NOTCH_FAST    1000
 
 // Scale ADC input values according the attenuation by the voltage dividers
-#define ADC_0_1_DIVIDER_GAIN        7.25F
-#define ADC_2_3_DIVIDER_GAIN        10.72F
+#define ADC_0_1_DIVIDER_GAIN        7.73
+#define ADC_2_3_DIVIDER_GAIN        11.15
 #define ADC_ADDRESS                 0x48
-#define ADC_MULTIPLIER              0.1875F
+#define ADC_MULTIPLIER              0.1875
 
 #define MIN_SMPS_VOLTAGE_MILLIVOLTS 0
 #define MAX_SMPS_VOLTAGE_MILLIVOLTS 40000
@@ -140,8 +149,8 @@ BuckPSU psu(Serial1);
 
 Adafruit_ADS1115 ads(ADC_ADDRESS);
 
-uint16_t millivolts = 0, prevMillivolts = -1;
-uint16_t milliamps = 0, prevMilliamps = -1;
+uint16_t millivoltsSMPS = 1000, prevMillivoltsSMPS = -1;
+uint16_t milliampsSMPS = 100, prevMilliampsSMPS = -1;
 
 int16_t voltEncValue, currEncCalue;
 
@@ -168,44 +177,45 @@ void setup(void) {
     tft.fillScreen(BLACK);
     setupUI();
 
-    setUIVoltageSMPS(1000);
-    setUICurrentSMPS(1000);
-    psu.setVoltageMilliVolts(1000);
-    psu.setCurrentMilliAmps(1000);
+    setUIVoltageSMPS(millivoltsSMPS);
+    setUICurrentSMPS(milliampsSMPS);
+    psu.setVoltageMilliVolts(millivoltsSMPS);
+    psu.setCurrentMilliAmps(milliampsSMPS);
+    setUIVoltageLinear(0);
 }
 
 void loop()
 {
     delay(200);
-    Serial.print("Linear:  ");
-    Serial.println(getLinearVoltageMillivolts());
-    Serial.print("transformer:  ");
-    Serial.println(getTransformerVoltageMillivolts());
+//    Serial.print("Linear:  ");
+   setUIVoltageLinear(getLinearVoltageMillivolts());
+    // Serial.print("transformer:  ");
+    // Serial.println(getTransformerVoltageMillivolts());
 
-    millivolts = updateMillivolts(millivolts);
-    if (millivolts != prevMillivolts) {
-        prevMillivolts = millivolts;
+   millivoltsSMPS = updateMillivoltsSMPS(millivoltsSMPS);
+   if (millivoltsSMPS != prevMillivoltsSMPS) {
+       prevMillivoltsSMPS = millivoltsSMPS;
 
-        setUIVoltageSMPS(millivolts);
-        psu.setVoltageMilliVolts(millivolts);
-        delay(PSU_WRITE_DELAY_MS);
-    }
+       setUIVoltageSMPS(millivoltsSMPS);
+       psu.setVoltageMilliVolts(millivoltsSMPS);
+       delay(PSU_WRITE_DELAY_MS);
+   }
 
 
-    ClickEncoder::Button currEncoder_btn = currEncoder->getButton();
-    milliamps = updateMilliamps(milliamps);
-    if (milliamps != prevMilliamps) {
-        prevMilliamps = milliamps;
+   ClickEncoder::Button currEncoder_btn = currEncoder->getButton();
+   milliampsSMPS = updateMilliamps(milliampsSMPS);
+   if (milliampsSMPS != prevMilliampsSMPS) {
+       prevMilliampsSMPS = milliampsSMPS;
 
-        setUICurrentSMPS(milliamps);
-        psu.setCurrentMilliAmps(milliamps);
-        delay(PSU_WRITE_DELAY_MS);
-    }
+       setUICurrentSMPS(milliampsSMPS);
+       psu.setCurrentMilliAmps(milliampsSMPS);
+       delay(PSU_WRITE_DELAY_MS);
+   }
 
 }
 
-// Update millivolts from the latest encoder reading
-uint16_t updateMillivolts(uint16_t millivolts){
+// Update SMPS millivolts setting from the latest encoder reading
+uint16_t updateMillivoltsSMPS(uint16_t millivolts){
     static bool voltAdjustSlow = false;
 
     // If button is clicked, change speed from slow to fast or vice versa
@@ -236,7 +246,7 @@ uint16_t updateMillivolts(uint16_t millivolts){
 }
 
 
-// Update milliamps from the latest encoder reading
+// Update SMPS milliamps setting from the latest encoder reading
 uint16_t updateMilliamps(uint16_t milliamps){
     static bool currAdjustSlow = true;
 
@@ -266,9 +276,8 @@ uint16_t updateMilliamps(uint16_t milliamps){
     return milliamps;
 }
 
-// Set UI voltage
+// Set UI voltage for switched supply
 void setUIVoltageSMPS(uint16_t millivolts) {
-    tft.setCursor(SMPS_VOLT_START_X, SMPS_VOLT_START_Y);
     tft.setTextColor(GREEN);
     tft.setTextSize(SMPS_VOLT_TEXT_SIZE);
 
@@ -293,16 +302,48 @@ void setUIVoltageSMPS(uint16_t millivolts) {
                 SMPS_VOLT_CHAR_HEIGHT,  // height
                 BLACK                   // colour
             );
-            tft.setCursor(charStartXCoord, SMPS_VOLT_START_Y);
+           tft.setCursor(charStartXCoord, SMPS_VOLT_START_Y);
+           tft.print(voltStr[i]);
+        }
+    }
+    strncpy(oldVoltStr, voltStr, SMPS_VOLT_NUM_CHARS);
+}
+
+// Set UI voltage for switched supply
+void setUIVoltageLinear(uint16_t millivoltsLinear) {
+    tft.setTextColor(GREEN);
+    tft.setTextSize(LINEAR_VOLT_TEXT_SIZE);
+
+    // Convert uint16t to str
+    float volts = millivoltsLinear / 1000.0;
+    char voltStr[LINEAR_VOLT_NUM_CHARS];
+    static char oldVoltStr[LINEAR_VOLT_NUM_CHARS];
+    dtostrf(volts, LINEAR_VOLT_NUM_CHARS, 1, voltStr);
+
+    for(int i = 0; i < LINEAR_VOLT_NUM_CHARS; i++){
+        // If a character has changed, erase it and redraw.
+        if(voltStr[i] != oldVoltStr[i])
+        {
+            // The x coordinate of the start of the character to change
+            int charStartXCoord = LINEAR_VOLT_START_X
+                                  + i * LINEAR_VOLT_TOTAL_CHAR_WIDTH;
+            // Blank out the char rectangle
+            tft.fillRect(
+                charStartXCoord,            // x
+                LINEAR_VOLT_START_Y,        // y
+                LINEAR_VOLT_CHAR_WIDTH,     // width
+                LINEAR_VOLT_CHAR_HEIGHT,    // height
+                BLACK                       // colour
+            );
+            tft.setCursor(charStartXCoord, LINEAR_VOLT_START_Y);
             tft.print(voltStr[i]);
         }
     }
-    strncpy(oldVoltStr, voltStr, 5);
+    strncpy(oldVoltStr, voltStr, LINEAR_VOLT_NUM_CHARS);
 }
 
-// Set UI curent
+// Set UI current for switched supply
 void setUICurrentSMPS(uint16_t milliamps) {
-    tft.setCursor(SMPS_CURR_START_X, SMPS_CURR_START_Y);
     tft.setTextColor(BLUE);
     tft.setTextSize(SMPS_CURR_TEXT_SIZE);
 
@@ -331,12 +372,13 @@ void setUICurrentSMPS(uint16_t milliamps) {
             tft.print(currStr[i]);
         }
     }
-    strncpy(oldCurrStr, currStr, 5);
+    strncpy(oldCurrStr, currStr, SMPS_CURR_NUM_CHARS);
 }
+
 
 // Setup display with units etc
 void setupUI() {
-    // Setup Voltage unit
+    // Setup SMPS Voltage unit
     int charStartXCoord = SMPS_VOLT_START_X
                           + SMPS_VOLT_NUM_CHARS * SMPS_VOLT_TOTAL_CHAR_WIDTH;
     tft.setCursor(charStartXCoord, SMPS_VOLT_START_Y);
@@ -346,29 +388,31 @@ void setupUI() {
 
     // Setup Current unit
     charStartXCoord = SMPS_CURR_START_X
-                          + SMPS_CURR_NUM_CHARS * SMPS_CURR_TOTAL_CHAR_WIDTH;
+                      + SMPS_CURR_NUM_CHARS * SMPS_CURR_TOTAL_CHAR_WIDTH;
     tft.setCursor(charStartXCoord, SMPS_CURR_START_Y);
     tft.setTextColor(BLUE);
     tft.setTextSize(SMPS_CURR_TEXT_SIZE);
     tft.print("A");
+
+    // Setup Linear Voltage unit
+    charStartXCoord = LINEAR_VOLT_START_X
+                      + LINEAR_VOLT_NUM_CHARS * LINEAR_VOLT_TOTAL_CHAR_WIDTH;
+    tft.setCursor(charStartXCoord, LINEAR_VOLT_START_Y);
+    tft.setTextColor(GREEN);
+    tft.setTextSize(LINEAR_VOLT_TEXT_SIZE);
+    tft.print("V");
 }
 
 // Sample ADC differential voltage from linear power supply
 int16_t getLinearVoltageMillivolts(){
     float result = ads.readADC_Differential_0_1() * ADC_MULTIPLIER;
-    Serial.print("result: ");
-    Serial.println(result);
-    float result_scaled = result * ADC_0_1_DIVIDER_GAIN;
-    Serial.print("result scaled: ");
-    Serial.println(result_scaled);
-    return (int16_t) (result_scaled);
+    return (int16_t) (result * ADC_0_1_DIVIDER_GAIN);
 }
 
 // Sample ADC differential voltage from transformer output
 int16_t getTransformerVoltageMillivolts(){
-  float multiplier = 0.1875F;
-    float voltage = ads.readADC_Differential_2_3() * multiplier;
-    return (int16_t) (voltage * ADC_2_3_DIVIDER_GAIN);
+    float result = ads.readADC_Differential_2_3() * ADC_MULTIPLIER;
+    return (int16_t) (result * ADC_2_3_DIVIDER_GAIN);
 }
 
 // Show constant voltage symbol (hides CV)
@@ -383,6 +427,4 @@ void encoderISR() {
     voltEncoder->service();
     currEncoder->service();
 }
-
-
 
